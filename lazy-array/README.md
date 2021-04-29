@@ -11,3 +11,13 @@
 6. `*[Symbol.iterator]()`
 7. Access element at target index
 8. Immutable
+
+## Usage
+
+```ts
+const factory = LazyArray.createFactory(
+  (n, self) => [[n], self(n + 1)]
+)
+
+LazyArray.take(factory(0), 6) // OUTPUT: [0, 1, 2, 3, 4, 5]
+```
