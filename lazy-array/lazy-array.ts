@@ -66,6 +66,7 @@ export class LazyArray<T> {
     const iterator = iterable[Symbol.iterator]();
     const arr: T[] = [];
     for (let i = 0; i < num; i++) {
+      // deno-lint-ignore no-explicit-any
       const { done, value } = iterator.next(directed as any);
       if (done) break;
       arr.push(value);
@@ -94,6 +95,7 @@ export class LazyArray<T> {
       this.iter = this.generatorCreator!();
     }
 
+    // deno-lint-ignore no-explicit-any
     const res = this.iter.next(directed as any);
     if (res.done) {
       this.done = true;
@@ -139,6 +141,7 @@ export class LazyArray<T> {
     for (const iter of arr) {
       const gen = iter[Symbol.iterator]();
       while (true) {
+        // deno-lint-ignore no-explicit-any
         const { value, done } = gen.next(directed as any);
         if (done) {
           break;
