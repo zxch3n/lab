@@ -1,3 +1,4 @@
+const directed = Symbol();
 export class LazyArray<T> {
   static createFactory<TArg, T>(
     callback: (arg: TArg, fn: (arg: TArg) => Generator<T>) => Generator<T>
@@ -9,42 +10,29 @@ export class LazyArray<T> {
       );
     }
 
-    let gen: Generator<T>;
-
     const stack: Generator<T>[] = [];
     const set = new Set();
 
-    function* push(arg: TArg) {
+    function* push(
+      arg: TArg
+    ): Generator<T, unknown, undefined | typeof directed> {
       const payload = callback(arg, push);
-      set.add(payload);
-      stack.push(payload);
-      const { value, done } = payload.next();
+      const { value, done } = payload.next(directed);
       if (done) {
         return;
       }
 
-      yield value;
-      const stackRunner = runStack();
-      while (set.has(payload)) {
-        const { value, done } = stackRunner.next();
+      const yielded = yield value;
+      if (directed === yielded) {
+        set.add(payload);
+        stack.push(payload);
+        return;
+      }
+
+      while (true) {
+        const { value, done } = payload.next(directed);
         if (done) {
           return;
-        }
-
-        yield value;
-      }
-    }
-
-    function* runStack(): Generator<T> {
-      while (stack.length) {
-        const index = stack.length - 1;
-        const payload = stack[index];
-        const top = payload;
-        const { value, done } = top.next();
-        if (done) {
-          stack.splice(index, 1);
-          set.delete(payload);
-          continue;
         }
 
         yield value;
@@ -54,11 +42,13 @@ export class LazyArray<T> {
     function* self(arg: TArg): Generator<T> {
       stack.push(callback(arg, push));
       while (stack.length) {
-        const payload = stack[0];
+        const last = stack.length - 1;
+        const payload = stack[last];
         const top = payload;
-        const { value, done } = top.next();
+        const { value, done } = top.next(directed);
         if (done) {
-          return;
+          stack.splice(stack.indexOf(payload), 1);
+          continue;
         }
 
         yield value;
@@ -67,7 +57,7 @@ export class LazyArray<T> {
 
     return (arg: TArg) => {
       created = true;
-      gen = self(arg);
+      const gen = self(arg);
       return new LazyArray(gen);
     };
   }
@@ -76,7 +66,7 @@ export class LazyArray<T> {
     const iterator = iterable[Symbol.iterator]();
     const arr: T[] = [];
     for (let i = 0; i < num; i++) {
-      const { done, value } = iterator.next();
+      const { done, value } = iterator.next(directed as any);
       if (done) break;
       arr.push(value);
     }
@@ -104,7 +94,7 @@ export class LazyArray<T> {
       this.iter = this.generatorCreator!();
     }
 
-    const res = this.iter.next();
+    const res = this.iter.next(directed as any);
     if (res.done) {
       this.done = true;
       return;
@@ -147,8 +137,14 @@ export class LazyArray<T> {
 
   static *concat<T>(...arr: Iterable<T>[]) {
     for (const iter of arr) {
-      for (const v of iter) {
-        yield v;
+      const gen = iter[Symbol.iterator]();
+      while (true) {
+        const { value, done } = gen.next(directed as any);
+        if (done) {
+          break;
+        }
+
+        yield value;
       }
     }
   }
