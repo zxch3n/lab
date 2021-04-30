@@ -38,11 +38,11 @@ Deno.test("LazyArray Factory Long", () => {
 Deno.test("LazyArray map", () => {
   const factory = LazyArray.createFactory((n: number, self) =>
     LazyArray.concat(
-      [n],
+      [n, n + 1, n + 2],
       LazyArray.map((x) => x * 2, self(n))
     )
   ) as (n: number) => LazyArray<number>;
 
-  const arr = LazyArray.take(factory(1), 4);
-  assertEquals(arr, [1, 2, 4, 8]);
+  const arr = LazyArray.take(factory(1), 6);
+  assertEquals(arr, [1, 2, 3, 2, 4, 6]);
 });

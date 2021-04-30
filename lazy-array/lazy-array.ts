@@ -12,21 +12,53 @@ export class LazyArray<T> {
     let gen: Generator<T>;
 
     const stack: Generator<T>[] = [];
+    const set = new Set();
 
     function* push(arg: TArg) {
-      const payload = callback(arg, push as any);
+      const payload = callback(arg, push);
+      set.add(payload);
       stack.push(payload);
+      const { value, done } = payload.next();
+      if (done) {
+        return;
+      }
+
+      yield value;
+      const stackRunner = runStack();
+      while (set.has(payload)) {
+        const { value, done } = stackRunner.next();
+        if (done) {
+          return;
+        }
+
+        yield value;
+      }
     }
 
-    function* self(arg: TArg): Generator<T> {
-      stack.push(callback(arg, push as any));
+    function* runStack(): Generator<T> {
       while (stack.length) {
         const index = stack.length - 1;
-        const top = stack[index];
+        const payload = stack[index];
+        const top = payload;
         const { value, done } = top.next();
         if (done) {
           stack.splice(index, 1);
+          set.delete(payload);
           continue;
+        }
+
+        yield value;
+      }
+    }
+
+    function* self(arg: TArg): Generator<T> {
+      stack.push(callback(arg, push));
+      while (stack.length) {
+        const payload = stack[0];
+        const top = payload;
+        const { value, done } = top.next();
+        if (done) {
+          return;
         }
 
         yield value;
