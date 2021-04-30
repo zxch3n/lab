@@ -1,47 +1,42 @@
-const INSIDE_SYMBOL = Symbol();
 export class LazyArray<T> {
   static createFactory<TArg, T>(
     callback: (arg: TArg, fn: (arg: TArg) => Generator<T>) => Generator<T>
   ): (args: TArg) => LazyArray<T> {
-    type InsidePayload = { symbol: typeof INSIDE_SYMBOL; arg: TArg };
-    let isInside = false;
+    let created = false;
+    if (created) {
+      throw new Error(
+        "Factory can only be used once. You should create another factory."
+      );
+    }
+
+    let gen: Generator<T>;
+
+    const stack: Generator<T>[] = [];
+
+    function* push(arg: TArg) {
+      const payload = callback(arg, push as any);
+      stack.push(payload);
+    }
 
     function* self(arg: TArg): Generator<T> {
-      if (isInside) {
-        yield (({
-          symbol: INSIDE_SYMBOL,
-          arg,
-        } as InsidePayload) as unknown) as T;
-      }
-
-      isInside = true;
-      const stack: Generator<T>[] = [callback(arg, self)];
-      try {
-        while (stack.length) {
-          const top = stack[stack.length - 1];
-          const { value, done } = top.next();
-          if (done) {
-            stack.pop();
-            continue;
-          }
-
-          if (
-            typeof value === "object" &&
-            (value as InsidePayload).symbol === INSIDE_SYMBOL
-          ) {
-            stack.push(callback((value as InsidePayload).arg, self));
-            continue;
-          }
-
-          yield value;
+      stack.push(callback(arg, push as any));
+      while (stack.length) {
+        const index = stack.length - 1;
+        const top = stack[index];
+        const { value, done } = top.next();
+        if (done) {
+          stack.splice(index, 1);
+          continue;
         }
-      } finally {
-        isInside = false;
+
+        yield value;
       }
     }
 
     return (arg: TArg) => {
-      return new LazyArray(self(arg));
+      created = true;
+      gen = self(arg);
+      return new LazyArray(gen);
     };
   }
 
@@ -123,6 +118,12 @@ export class LazyArray<T> {
       for (const v of iter) {
         yield v;
       }
+    }
+  }
+
+  static *map<T, TReturn>(func: (arg: T) => TReturn, iter: Iterable<T>) {
+    for (const v of iter) {
+      yield func(v);
     }
   }
 }
