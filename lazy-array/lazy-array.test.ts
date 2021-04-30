@@ -30,7 +30,7 @@ Deno.test("LazyArray Factory Long", () => {
     LazyArray.concat([1], self(n))
   ) as (n: number) => LazyArray<number>;
 
-  const length = 1e4;
+  const length = 1e6;
   const arr = LazyArray.take(factory(0), length);
   assertEquals(arr.length, length);
 });

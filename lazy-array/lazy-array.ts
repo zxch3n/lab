@@ -4,9 +4,39 @@ export class LazyArray<T> {
     callback: (arg: TArg, fn: (arg: TArg) => Generator<T>) => Generator<T>
   ): (args: TArg) => LazyArray<T> {
     type InsidePayload = { symbol: typeof INSIDE_SYMBOL; arg: TArg };
+    let isInside = false;
+
     function* self(arg: TArg): Generator<T> {
-      for (const v of callback(arg, self)) {
-        yield v;
+      if (isInside) {
+        yield (({
+          symbol: INSIDE_SYMBOL,
+          arg,
+        } as InsidePayload) as unknown) as T;
+      }
+
+      isInside = true;
+      const stack: Generator<T>[] = [callback(arg, self)];
+      try {
+        while (stack.length) {
+          const top = stack[stack.length - 1];
+          const { value, done } = top.next();
+          if (done) {
+            stack.pop();
+            continue;
+          }
+
+          if (
+            typeof value === "object" &&
+            (value as InsidePayload).symbol === INSIDE_SYMBOL
+          ) {
+            stack.push(callback((value as InsidePayload).arg, self));
+            continue;
+          }
+
+          yield value;
+        }
+      } finally {
+        isInside = false;
       }
     }
 
